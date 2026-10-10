@@ -1,0 +1,170 @@
+name: Release
+
+# Full multi-platform server build. Runs only on a version tag (v1.2.3) or by
+# hand, because Windows and macOS runners cost 2x and 10x Actions minutes.
+#   Linux:   amd64, arm64, armv7, i386 (static musl)
+#   Windows: x86_64
+#   macOS:   arm64, x86_64
+#   Docker:  ghcr.io/<owner>/dalnovid-server (amd64, arm64, armv7)
+# Assets go to a draft GitHub release on tags.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.job.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - { name: amd64,   target: x86_64-unknown-linux-musl,      docker: amd64 }
+          - { name: arm64,   target: aarch64-unknown-linux-musl,     docker: arm64 }
+          - { name: armv7,   target: armv7-unknown-linux-musleabihf, docker: armv7 }
+          - { name: i386,    target: i686-unknown-linux-musl,        docker: "" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.job.target }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+      - name: Build
+        run: cross build --locked --release --all-features --target ${{ matrix.job.target }}
+      - name: Package
+        run: |
+          d=dalnovid-server-linux-${{ matrix.job.name }}
+          mkdir -p "$d"
+          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr,rustdesk-utils} "$d"/
+          chmod a+x "$d"/*
+          cp LICENSE "$d"/
+          tar czf "$d.tar.gz" "$d"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.job.name }}
+          path: dalnovid-server-linux-${{ matrix.job.name }}.tar.gz
+          if-no-files-found: error
+      - name: Stage binaries for Docker
+        if: matrix.job.docker != ''
+        run: |
+          mkdir -p docker-bin/${{ matrix.job.docker }}
+          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr} docker-bin/${{ matrix.job.docker }}/
+      - uses: actions/upload-artifact@v4
+        if: matrix.job.docker != ''
+        with:
+          name: docker-bin-${{ matrix.job.docker }}
+          path: docker-bin/
+          if-no-files-found: error
+
+  windows:
+    name: Windows x86_64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --locked --release --all-features
+      - name: Package
+        shell: pwsh
+        run: |
+          $d = "dalnovid-server-windows-x86_64"
+          New-Item -ItemType Directory -Force $d | Out-Null
+          Copy-Item target\release\hbbs.exe, target\release\hbbr.exe, target\release\rustdesk-utils.exe, LICENSE $d
+          Compress-Archive -Path $d -DestinationPath "$d.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: dalnovid-server-windows-x86_64.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS ${{ matrix.job.name }}
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - { name: arm64,  target: aarch64-apple-darwin }
+          - { name: x86_64, target: x86_64-apple-darwin }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.job.target }}
+      - name: Build
+        run: cargo build --locked --release --all-features --target ${{ matrix.job.target }}
+      - name: Package
+        run: |
+          d=dalnovid-server-macos-${{ matrix.job.name }}
+          mkdir -p "$d"
+          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr,rustdesk-utils} "$d"/
+          cp LICENSE "$d"/
+          tar czf "$d.tar.gz" "$d"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.job.name }}
+          path: dalnovid-server-macos-${{ matrix.job.name }}.tar.gz
+          if-no-files-found: error
+
+  docker:
+    name: Docker image
+    needs: linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: docker-bin-*
+          path: docker-dalnovid/bin
+          merge-multiple: true
+      - run: chmod -R a+x docker-dalnovid/bin
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/dalnovid-server" >> "$GITHUB_ENV"
+      - name: Tags
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "TAGS=$IMAGE:${GITHUB_REF_NAME},$IMAGE:latest" >> "$GITHUB_ENV"
+          else
+            echo "TAGS=$IMAGE:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker-dalnovid
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          provenance: false
+          tags: ${{ env.TAGS }}
+
+  release:
+    name: Draft GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+          pattern: "{linux,windows,macos}-*"
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: dist/*
