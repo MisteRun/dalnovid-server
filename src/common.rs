@@ -120,7 +120,7 @@ pub fn set_arg(name: &str, value: &str) {
 pub fn init_args(args: &str, name: &str, about: &str) {
     let matches = App::new(name)
         .version(crate::version::VERSION)
-        .author("Purslane Ltd. <info@rustdesk.com>")
+        .author("Dalnovid (based on RustDesk Server by Purslane Ltd.)")
         .about(about)
         .args_from_usage(args)
         .get_matches();
@@ -280,6 +280,11 @@ pub async fn listen_signal() -> Result<()> {
 
 
 pub fn check_software_update() {
+    // Dalnovid: upstream posts this machine's fingerprint to api.rustdesk.com
+    // once a day. Disabled until Dalnovid has its own update endpoint.
+    if true {
+        return;
+    }
     const ONE_DAY_IN_SECONDS: u64 = 60 * 60 * 24;
     std::thread::spawn(move || loop {
         std::thread::spawn(move || allow_err!(check_software_update_()));

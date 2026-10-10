@@ -493,7 +493,8 @@ pub const VER_TYPE_RUSTDESK_CLIENT: &str = "rustdesk-client";
 pub const VER_TYPE_RUSTDESK_SERVER: &str = "rustdesk-server";
 
 pub fn version_check_request(typ: String) -> (VersionCheckRequest, String) {
-    const URL: &str = "https://api.rustdesk.com/version/latest";
+    // Dalnovid: no update endpoint yet; never send machine data to api.rustdesk.com.
+    const URL: &str = "";
 
     use sysinfo::System;
     let system = System::new();
