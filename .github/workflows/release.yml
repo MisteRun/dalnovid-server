@@ -1,12 +1,12 @@
 name: Release
 
-# Full multi-platform server build. Runs only on a version tag (v1.2.3) or by
-# hand, because Windows and macOS runners cost 2x and 10x Actions minutes.
-#   Linux:   amd64, arm64, armv7, i386 (static musl)
+# Multi-platform server build, on a version tag (v1.2.3) or by hand.
+#   Linux:   amd64, arm64 (glibc 2.35+: Ubuntu 22.04+, Debian 12+)
 #   Windows: x86_64
 #   macOS:   arm64, x86_64
-#   Docker:  ghcr.io/<owner>/dalnovid-server (amd64, arm64, armv7)
-# Assets go to a draft GitHub release on tags.
+#   Docker:  ghcr.io/<owner>/dalnovid-server (amd64, arm64)
+# On tags the archives are published as a GitHub release, which install.sh
+# downloads from.
 
 on:
   workflow_dispatch:
@@ -23,47 +23,37 @@ env:
 jobs:
   linux:
     name: Linux ${{ matrix.job.name }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.job.os }}
     strategy:
       fail-fast: false
       matrix:
         job:
-          - { name: amd64,   target: x86_64-unknown-linux-musl,      docker: amd64 }
-          - { name: arm64,   target: aarch64-unknown-linux-musl,     docker: arm64 }
-          - { name: armv7,   target: armv7-unknown-linux-musleabihf, docker: armv7 }
-          - { name: i386,    target: i686-unknown-linux-musl,        docker: "" }
+          - { name: amd64, os: ubuntu-22.04 }
+          - { name: arm64, os: ubuntu-22.04-arm }
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.job.target }}
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cross
+      - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cross build --locked --release --all-features --target ${{ matrix.job.target }}
+        run: cargo build --locked --release --all-features
       - name: Package
         run: |
           d=dalnovid-server-linux-${{ matrix.job.name }}
           mkdir -p "$d"
-          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr,rustdesk-utils} "$d"/
+          cp target/release/{hbbs,hbbr,dalnovid-utils} "$d"/
           chmod a+x "$d"/*
-          cp LICENSE "$d"/
+          cp LICENSE NOTICE "$d"/
           tar czf "$d.tar.gz" "$d"
+          mkdir -p docker-bin/${{ matrix.job.name }}
+          cp target/release/{hbbs,hbbr} docker-bin/${{ matrix.job.name }}/
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.job.name }}
           path: dalnovid-server-linux-${{ matrix.job.name }}.tar.gz
           if-no-files-found: error
-      - name: Stage binaries for Docker
-        if: matrix.job.docker != ''
-        run: |
-          mkdir -p docker-bin/${{ matrix.job.docker }}
-          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr} docker-bin/${{ matrix.job.docker }}/
       - uses: actions/upload-artifact@v4
-        if: matrix.job.docker != ''
         with:
-          name: docker-bin-${{ matrix.job.docker }}
+          name: docker-bin-${{ matrix.job.name }}
           path: docker-bin/
           if-no-files-found: error
 
@@ -80,7 +70,7 @@ jobs:
         run: |
           $d = "dalnovid-server-windows-x86_64"
           New-Item -ItemType Directory -Force $d | Out-Null
-          Copy-Item target\release\hbbs.exe, target\release\hbbr.exe, target\release\rustdesk-utils.exe, LICENSE $d
+          Copy-Item target\release\hbbs.exe, target\release\hbbr.exe, target\release\dalnovid-utils.exe, LICENSE, NOTICE $d
           Compress-Archive -Path $d -DestinationPath "$d.zip"
       - uses: actions/upload-artifact@v4
         with:
@@ -108,8 +98,8 @@ jobs:
         run: |
           d=dalnovid-server-macos-${{ matrix.job.name }}
           mkdir -p "$d"
-          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr,rustdesk-utils} "$d"/
-          cp LICENSE "$d"/
+          cp target/${{ matrix.job.target }}/release/{hbbs,hbbr,dalnovid-utils} "$d"/
+          cp LICENSE NOTICE "$d"/
           tar czf "$d.tar.gz" "$d"
       - uses: actions/upload-artifact@v4
         with:
@@ -148,13 +138,13 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: docker-dalnovid
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
           tags: ${{ env.TAGS }}
 
   release:
-    name: Draft GitHub release
+    name: GitHub release
     if: startsWith(github.ref, 'refs/tags/')
     needs: [linux, windows, macos]
     runs-on: ubuntu-24.04
@@ -166,5 +156,6 @@ jobs:
           pattern: "{linux,windows,macos}-*"
       - uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
+          make_latest: true
           files: dist/*

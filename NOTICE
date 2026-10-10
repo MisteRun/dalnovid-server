@@ -1,0 +1,15 @@
+Dalnovid Server
+Copyright (C) 2026 Dalnovid contributors
+
+This program is a modified version of RustDesk Server
+(https://github.com/rustdesk/rustdesk-server),
+Copyright (C) Purslane Ltd. and RustDesk contributors,
+licensed under the GNU Affero General Public License v3.0.
+
+Modified by Dalnovid contributors starting October 2026. The full list of
+changes is the git history of this repository.
+
+Dalnovid is not affiliated with or endorsed by RustDesk or Purslane Ltd.
+
+This program is distributed under the terms of the GNU Affero General Public
+License v3.0; see the LICENSE file.

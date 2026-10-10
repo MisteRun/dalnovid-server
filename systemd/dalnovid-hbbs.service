@@ -1,0 +1,17 @@
+[Unit]
+Description=Dalnovid ID server (hbbs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+LimitNOFILE=1000000
+ExecStart=/opt/dalnovid-server/hbbs
+WorkingDirectory=/var/lib/dalnovid-server/
+User=dalnovid
+Group=dalnovid
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

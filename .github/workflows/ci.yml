@@ -36,5 +36,5 @@ jobs:
           path: |
             target/release/hbbs
             target/release/hbbr
-            target/release/rustdesk-utils
+            target/release/dalnovid-utils
           if-no-files-found: warn

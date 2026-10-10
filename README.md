@@ -1,59 +1,70 @@
-# RustDesk Server Program
+# Dalnovid Server
 
-[![build](https://github.com/rustdesk/rustdesk-server/actions/workflows/build.yaml/badge.svg)](https://github.com/rustdesk/rustdesk-server/actions/workflows/build.yaml)
+Сервер для Dalnovid — удалённого доступа, который вы контролируете сами:
+свой ID-сервер, свой relay, без обращений к чужим серверам.
 
-[**Download**](https://github.com/rustdesk/rustdesk-server/releases)
+Состоит из двух программ:
 
-[**Manual**](https://rustdesk.com/docs/en/self-host/)
+- **hbbs** — ID-сервер: регистрирует устройства и помогает им найти друг друга;
+- **hbbr** — relay: передаёт трафик, когда прямое соединение невозможно.
 
-[**Configuration & environment variables**](docs/environment-variables.md)
+Клиенты Dalnovid на Windows, macOS, Linux, Android и iOS подключаются к любому
+серверу Dalnovid. Сам сервер работает на Linux (x86_64, ARM64), Windows и macOS.
 
-[**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+## Быстрая установка (Ubuntu / Debian)
 
-[**How to migrate OSS to Pro**](https://rustdesk.com/docs/en/self-host/rustdesk-server-pro/installscript/#convert-from-open-source)
+```bash
+curl -fsSL https://raw.githubusercontent.com/MisteRun/dalnovid-server/main/install.sh | sudo bash -s -- relay.example.com
+```
 
-Self-host your own RustDesk server, it is free and open source.
+Аргумент — адрес, по которому клиенты достучатся до relay (домен или IP этого
+сервера). Скрипт ставит последнюю версию в `/opt/dalnovid-server`, хранит ключи
+и базу в `/var/lib/dalnovid-server`, заводит systemd-сервисы `dalnovid-hbbs`
+и `dalnovid-hbbr`, открывает порты в ufw (если он включён) и в конце печатает
+**публичный ключ сервера** — его нужно указать в клиентах.
 
-> [!IMPORTANT]
-> **Need more features?** [RustDesk Server Pro](https://rustdesk.com/pricing.html) might suit you better.
->
-> **Want to develop your own server?** Start with [rustdesk-server-demo](https://github.com/rustdesk/rustdesk-server-demo), a simpler starting point than this repository.
+## Docker
 
-## How to build manually
+```bash
+cd docker-dalnovid
+# поправьте адрес relay в docker-compose.yml
+docker compose up -d
+cat data/id_ed25519.pub
+```
+
+Образ: `ghcr.io/misterun/dalnovid-server` (amd64, arm64).
+
+## Порты
+
+| Порт | Протокол | Программа | Назначение |
+|---|---|---|---|
+| 21115 | TCP | hbbs | проверка типа NAT |
+| 21116 | TCP + UDP | hbbs | регистрация ID, поиск, hole punching |
+| 21117 | TCP | hbbr | relay |
+| 21118 | TCP | hbbs | WebSocket (веб-клиент) |
+| 21119 | TCP | hbbr | WebSocket relay (веб-клиент) |
+
+## Ключи
+
+При первом запуске hbbs создаёт пару ключей `id_ed25519` / `id_ed25519.pub`.
+Публичный ключ раздаётся клиентам: по нему клиент проверяет, что говорит именно
+с вашим сервером. **Приватный ключ `id_ed25519` никому не передавайте и
+сохраните в резервной копии** — при его потере все клиенты придётся
+перенастроить.
+
+## Сборка из исходников
 
 ```bash
 cargo build --release
 ```
 
-Three executables will be generated in target/release.
+Результат: `target/release/hbbs`, `target/release/hbbr`,
+`target/release/dalnovid-utils`.
 
-- hbbs - RustDesk ID/Rendezvous server
-- hbbr - RustDesk relay server
-- rustdesk-utils - RustDesk CLI utilities
+Все параметры и переменные окружения:
+[docs/environment-variables.md](docs/environment-variables.md).
 
-You can find updated binaries on the [Releases](https://github.com/rustdesk/rustdesk-server/releases) page.
+## Лицензия
 
-## Configuration
-
-`hbbs` and `hbbr` can be configured with command-line flags, environment
-variables, or an `.env` / config file. Run `hbbs --help` or `hbbr --help` to see
-the available flags.
-
-The most common options:
-
-| Option | Flag | Env var | Applies to | Purpose |
-| --- | --- | --- | --- | --- |
-| Key | `-k` | `KEY` | hbbs, hbbr | `hbbs` loads/generates one by default |
-| Bind address | `-b` | `BIND` | hbbs, hbbr | Local IP address to listen on (default: all interfaces; requires 1.1.17+) |
-| Port | `-p` | `PORT` | hbbs, hbbr | Listening port (hbbs `21116`, hbbr `21117`) |
-| Relay servers | `-r` | `RELAY-SERVERS` | hbbs | Override when the relay uses a different address or a non-standard port |
-| Force relay | — | `ALWAYS_USE_RELAY` | hbbs | `Y` disables direct connections |
-| Log level | — | `RUST_LOG` | hbbs, hbbr | e.g. `debug` (default `info`) |
-
-See **[docs/environment-variables.md](docs/environment-variables.md)** for the
-full list of variables, the file/flag/env precedence rules, database and relay
-bandwidth tuning, Docker image variables, and examples.
-
-## Installation
-
-Please follow this [doc](https://rustdesk.com/docs/en/self-host/rustdesk-server-oss/)
+GNU AGPL-3.0, см. [LICENSE](LICENSE). Dalnovid Server — изменённая версия
+открытого проекта; происхождение и авторские права указаны в [NOTICE](NOTICE).
