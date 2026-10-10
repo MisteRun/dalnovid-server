@@ -20,7 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/MisteRun/dalnovid-server/main/insta
 Аргумент — адрес, по которому клиенты достучатся до relay (домен или IP этого
 сервера). Скрипт ставит последнюю версию в `/opt/dalnovid-server`, хранит ключи
 и базу в `/var/lib/dalnovid-server`, заводит systemd-сервисы `dalnovid-hbbs`
-и `dalnovid-hbbr`, открывает порты в ufw (если он включён) и в конце печатает
+и `dalnovid-hbbr` (relay обслуживает только клиентов с ключом этого сервера),
+открывает порты в ufw (если он включён) и в конце печатает
 **публичный ключ сервера** — его нужно указать в клиентах.
 
 ## Docker

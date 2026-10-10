@@ -18,7 +18,7 @@ services:
 
   hbbr:
     image: ghcr.io/misterun/dalnovid-server:latest
-    command: hbbr
+    command: hbbr -k _  # only clients with this server's key may use the relay
     ports:
       - "21117:21117"
       - "21119:21119"

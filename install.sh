@@ -81,7 +81,8 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 }
-unit dalnovid-hbbr "Dalnovid relay server (hbbr)" "$PREFIX/hbbr"
+# -k _ : relay only serves clients that know this server's key (no open relay)
+unit dalnovid-hbbr "Dalnovid relay server (hbbr)" "$PREFIX/hbbr -k _"
 unit dalnovid-hbbs "Dalnovid ID server (hbbs)" "$PREFIX/hbbs -r $RELAY"
 
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
