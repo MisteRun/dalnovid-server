@@ -5,7 +5,7 @@
 #     | sudo bash -s -- <relay-address> [version]
 #
 #   relay-address  host (or host:port) clients use to reach hbbr, e.g. relay.example.com
-#   version        release tag, default: latest
+#   version        release tag, default: newest (pre-releases included)
 #
 # Re-running upgrades the binaries and keeps keys and the database.
 set -euo pipefail
@@ -34,10 +34,13 @@ esac
 
 PKG="dalnovid-server-linux-$ARCH"
 if [ "$VERSION" = latest ]; then
-  URL="https://github.com/$REPO/releases/latest/download/$PKG.tar.gz"
-else
-  URL="https://github.com/$REPO/releases/download/$VERSION/$PKG.tar.gz"
+  # newest release, pre-releases included
+  VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" \
+    | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
+  [ -n "$VERSION" ] || die "could not find a release of $REPO"
 fi
+echo "==> Version $VERSION"
+URL="https://github.com/$REPO/releases/download/$VERSION/$PKG.tar.gz"
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 echo "==> Downloading $URL"

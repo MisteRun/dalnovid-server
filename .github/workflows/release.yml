@@ -15,6 +15,10 @@ on:
         description: "Release tag to create, e.g. v0.1.0 (empty = build only)"
         required: false
         default: ""
+      prerelease:
+        description: "Publish as a pre-release"
+        type: boolean
+        default: true
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
 
@@ -138,7 +142,11 @@ jobs:
           V="${{ inputs.version }}"
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then V="$GITHUB_REF_NAME"; fi
           if [[ -n "$V" ]]; then
-            echo "TAGS=$IMAGE:${V},$IMAGE:latest" >> "$GITHUB_ENV"
+            if [[ "${{ inputs.prerelease }}" == "true" || "$V" == *-* ]]; then
+              echo "TAGS=$IMAGE:${V},$IMAGE:edge" >> "$GITHUB_ENV"
+            else
+              echo "TAGS=$IMAGE:${V},$IMAGE:latest" >> "$GITHUB_ENV"
+            fi
           else
             echo "TAGS=$IMAGE:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           fi
@@ -167,5 +175,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Dalnovid Server ${{ inputs.version || github.ref_name }}
           draft: false
-          make_latest: true
+          prerelease: ${{ inputs.prerelease || contains(github.ref_name, '-') }}
+          make_latest: ${{ !(inputs.prerelease || contains(github.ref_name, '-')) }}
           files: dist/*
