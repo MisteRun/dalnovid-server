@@ -35,8 +35,11 @@ esac
 PKG="dalnovid-server-linux-$ARCH"
 if [ "$VERSION" = latest ]; then
   # newest release, pre-releases included
-  VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" \
-    | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
+  # read the whole response first: piping curl into grep -m1 kills curl with
+  # "(23) Failure writing output" and set -o pipefail then aborts the script
+  RELEASES="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1")" \
+    || die "could not reach the GitHub API"
+  VERSION="$(printf '%s\n' "$RELEASES" | sed -n -E 's/.*"tag_name": *"([^"]+)".*/\1/p' | head -n1 || true)"
   [ -n "$VERSION" ] || die "could not find a release of $REPO"
 fi
 echo "==> Version $VERSION"
